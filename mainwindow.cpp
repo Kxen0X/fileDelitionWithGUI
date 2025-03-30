@@ -49,7 +49,7 @@ void MainWindow::on_pushButton_clicked()
 }
 
 
-int deleteProcess(QVector<QString>, QProgressBar*);
+int deleteProcess(QVector<QString>&, QVector<QString>&, QString&, QProgressBar*);
 int toDelete(QString&, QString&, QString&, QLabel*, QProgressBar*);
 
 
@@ -75,7 +75,8 @@ void MainWindow::on_pushButton_2_clicked()
 
 int toDelete(QString& path, QString& fileName, QString& userName, QLabel* info, QProgressBar* progressBar){
     info->setText("Поиск объектов");
-    QVector<QString> objectsToDelete;
+    QVector<QString> foldersToDelete;
+    QVector<QString> filesToDelete;
 
     try{
 
@@ -98,8 +99,12 @@ int toDelete(QString& path, QString& fileName, QString& userName, QLabel* info, 
                     nameOfCurrentFile == "PerfLogs" || nameOfCurrentFile == userName) continue;
 
                 if(nameOfCurrentFile == fileName){
-
-                    objectsToDelete.append(CurrentFilePath);
+                    if(fileInfo.isDir()){
+                        foldersToDelete.append(CurrentFilePath);
+                    }
+                    if(fileInfo.isFile()){
+                        filesToDelete.append(CurrentFilePath);
+                    }
                 }
             }
 
@@ -113,9 +118,12 @@ int toDelete(QString& path, QString& fileName, QString& userName, QLabel* info, 
 
     info->setText("Удаление объектов");
 
-    int count = deleteProcess(objectsToDelete, progressBar);
+    int count = deleteProcess(filesToDelete, foldersToDelete, userName, progressBar);
 
-    objectsToDelete.clear();
+    filesToDelete.clear();
+    foldersToDelete.clear();
+
+    qDebug() << count;
 
     info->setText("");
 
@@ -124,27 +132,56 @@ int toDelete(QString& path, QString& fileName, QString& userName, QLabel* info, 
 }
 
 
-int deleteProcess(QVector<QString> objectsToDelete, QProgressBar* progressBar){
+int deleteProcess(QVector<QString>& filesToDelete, QVector<QString>& foldersToDelete, QString& userName, QProgressBar* progressBar){
     int countOfUndeleted = 0;
-    int sz = objectsToDelete.size();
     int countOfDeleted = 0;
-    foreach(QString path, objectsToDelete){
+    int filesCount = filesToDelete.size();
+    int dirsCount = foldersToDelete.size();
 
-        QApplication::processEvents();
-        QFileInfo fileInfo(path);
-        if(fileInfo.isFile()){
-            if(QFile::remove(path)){
+    QString currentBachPath = QCoreApplication::applicationDirPath() + "/toAdmin.bat";
+
+
+    for(QString path: foldersToDelete){
+        QProcess process;
+        process.setProcessChannelMode(QProcess::MergedChannels);
+
+        process.startCommand(currentBachPath + " \"" + path.replace("/", "\\") + "\" " + userName);
+        if(!process.waitForFinished()){
+            countOfUndeleted++;
+        } else {
+            int exitCode = process.exitCode();
+            QString output = process.readAllStandardOutput();
+
+            if (exitCode != 0) {
+                countOfUndeleted++;
+                qDebug() << "Failed to delete file:" << path << "Exit code:" << exitCode;
+            } else {
                 countOfDeleted++;
-                progressBar->setValue((double)countOfDeleted/sz*100);
-            }else countOfUndeleted++;
+                qDebug() << "Successfully deleted file:" << path;
+            }
+
+            qDebug() << "Output:" << output;
         }
-        if(fileInfo.isDir()){
-            QDir dir(path);
-            if(dir.rmdir(path)){
-                countOfDeleted++;
-                progressBar->setValue((double)countOfDeleted/sz*100);
-            }else countOfUndeleted++;
+    }
+    for(QString path: filesToDelete){
+        QProcess process;
+        process.setProcessChannelMode(QProcess::MergedChannels);
+        process.startCommand(currentBachPath + " \"" + path.replace("/", "\\") + "\" " + userName);
+        if(!process.waitForFinished()){
+            countOfUndeleted++;
+        } else {
+            int exitCode = process.exitCode();
+            QString output = process.readAllStandardOutput();
 
+            if (exitCode != 0) {
+                countOfUndeleted++;
+                qDebug() << "Failed to delete file:" << path << "Exit code:" << exitCode << '\n';
+            } else {
+                countOfDeleted++;
+                qDebug() << "Successfully deleted file:" << path << '\n';
+            }
+
+            qDebug() << "Output:" << output << '\n';
         }
     }
 
