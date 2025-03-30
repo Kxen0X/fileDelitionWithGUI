@@ -18,6 +18,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     ui->progressBar->setVisible(0);
+    ui->progressBar->setMaximum(100);
     QRegularExpression regex("^[a-zA-Z]:\\\\([^\\\\/:*?\"<>|]+\\\\)*$");
     QRegularExpressionValidator* validator = new QRegularExpressionValidator(regex, this);
     ui->lineEdit->setValidator(validator);
@@ -64,11 +65,14 @@ void MainWindow::on_pushButton_2_clicked()
 
     if(question.exec() == QMessageBox::Yes){
 
-    QString path = ui->lineEdit->text();
-    QString fileName = ui->lineEdit_2->text();
-    QString userName = ui->lineEdit_3->text();
-    toDelete(path, fileName, userName, ui->label_4, ui->progressBar);
-
+        QString path = ui->lineEdit->text();
+        QString fileName = ui->lineEdit_2->text();
+        QString userName = ui->lineEdit_3->text();
+        int count = toDelete(path, fileName, userName, ui->label_4, ui->progressBar);
+        QMessageBox ans(this);
+        ans.setWindowTitle("Undeleted Files");
+        ans.setText("Количество неудаленных объектов: " + QString::number(count));
+        ans.exec();
     }
 }
 
@@ -123,16 +127,18 @@ int toDelete(QString& path, QString& fileName, QString& userName, QLabel* info, 
     filesToDelete.clear();
     foldersToDelete.clear();
 
-    qDebug() << count;
 
     info->setText("");
-
-    return 0;
+    progressBar->setValue(0);
+    progressBar->setVisible(0);
+    return count;
 
 }
 
 
 int deleteProcess(QVector<QString>& filesToDelete, QVector<QString>& foldersToDelete, QString& userName, QProgressBar* progressBar){
+    QApplication::processEvents();
+    progressBar->setVisible(1);
     int countOfUndeleted = 0;
     int countOfDeleted = 0;
     int filesCount = filesToDelete.size();
@@ -162,6 +168,8 @@ int deleteProcess(QVector<QString>& filesToDelete, QVector<QString>& foldersToDe
 
             qDebug() << "Output:" << output;
         }
+        progressBar->setValue((double)(countOfDeleted+countOfUndeleted) / (filesCount+dirsCount) * 100);
+        QApplication::processEvents();
     }
     for(QString path: filesToDelete){
         QProcess process;
@@ -183,6 +191,8 @@ int deleteProcess(QVector<QString>& filesToDelete, QVector<QString>& foldersToDe
 
             qDebug() << "Output:" << output << '\n';
         }
+        progressBar->setValue((double)(countOfDeleted+countOfUndeleted) / (filesCount+dirsCount) * 100);
+        QApplication::processEvents();
     }
 
     return countOfUndeleted;
