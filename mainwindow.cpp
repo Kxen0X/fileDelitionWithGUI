@@ -19,6 +19,8 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
     ui->progressBar->setVisible(0);
     ui->progressBar->setMaximum(100);
+
+
     QRegularExpression regex("^[a-zA-Z]:\\\\([^\\\\/:*?\"<>|]+\\\\)*$");
     QRegularExpressionValidator* validator = new QRegularExpressionValidator(regex, this);
     ui->lineEdit->setValidator(validator);
@@ -50,9 +52,16 @@ void MainWindow::on_pushButton_clicked()
 }
 
 
-int deleteProcess(QVector<QString>&, QVector<QString>&, QString&, QProgressBar*);
-int toDelete(QString&, QString&, QString&, QLabel*, QProgressBar*);
+void MainWindow::on_pushButton_3_clicked()
+{
+    QMessageBox::information(this, "Information", "Удаляет файлы, которые СОДЕРЖАТ в имени определенную последовательность символов.");
+}
 
+
+
+int deleteProcess(QVector<QString>&, QVector<QString>&, QString&, QProgressBar*);
+int toDeleteComplAccurate(QString&, QString&, QString&, QLabel*, QProgressBar*);
+int toDeleteIncomplAccurate(QString&, QString&, QString&, QLabel*, QProgressBar*);
 
 void MainWindow::on_pushButton_2_clicked()
 {
@@ -68,7 +77,15 @@ void MainWindow::on_pushButton_2_clicked()
         QString path = ui->lineEdit->text();
         QString fileName = ui->lineEdit_2->text();
         QString userName = ui->lineEdit_3->text();
-        int count = toDelete(path, fileName, userName, ui->label_4, ui->progressBar);
+        Qt::CheckState isAccurate = ui->checkBox->checkState();
+        int count = 0;
+        if(isAccurate == Qt::Unchecked){
+            count = toDeleteComplAccurate(path, fileName, userName, ui->label_4, ui->progressBar);
+        }else{
+            count = toDeleteIncomplAccurate(path, fileName, userName, ui->label_4, ui->progressBar);
+        }
+
+
         QMessageBox ans(this);
         ans.setWindowTitle("Undeleted Files");
         ans.setText("Количество неудаленных объектов: " + QString::number(count));
@@ -77,7 +94,7 @@ void MainWindow::on_pushButton_2_clicked()
 }
 
 
-int toDelete(QString& path, QString& fileName, QString& userName, QLabel* info, QProgressBar* progressBar){
+int toDeleteComplAccurate(QString& path, QString& fileName, QString& userName, QLabel* info, QProgressBar* progressBar){
     info->setText("Поиск объектов");
     QVector<QString> foldersToDelete;
     QVector<QString> filesToDelete;
@@ -103,6 +120,64 @@ int toDelete(QString& path, QString& fileName, QString& userName, QLabel* info, 
                     nameOfCurrentFile == "PerfLogs" || nameOfCurrentFile == userName) continue;
 
                 if(nameOfCurrentFile == fileName){
+                    if(fileInfo.isDir()){
+                        foldersToDelete.append(CurrentFilePath);
+                    }
+                    if(fileInfo.isFile()){
+                        filesToDelete.append(CurrentFilePath);
+                    }
+                }
+            }
+
+        }
+
+    }
+    catch(const std::exception& exc){
+        qDebug() << "Exception: " << exc.what();
+        return 1;
+    }
+
+    info->setText("Удаление объектов");
+
+    int count = deleteProcess(filesToDelete, foldersToDelete, userName, progressBar);
+
+    filesToDelete.clear();
+    foldersToDelete.clear();
+
+
+    info->setText("");
+    progressBar->setValue(0);
+    progressBar->setVisible(0);
+    return count;
+
+}
+
+int toDeleteIncomplAccurate(QString& path, QString& fileName, QString& userName, QLabel* info, QProgressBar* progressBar){
+    info->setText("Поиск объектов");
+    QVector<QString> foldersToDelete;
+    QVector<QString> filesToDelete;
+
+    try{
+
+
+        QDirIterator it(path, QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden, QDirIterator::Subdirectories);
+
+        while(it.hasNext()){
+            QApplication::processEvents();
+            it.next();
+            QFileInfo fileInfo(it.filePath());
+
+            if(fileInfo.isFile() || fileInfo.isDir()){
+
+                QString nameOfCurrentFile = fileInfo.baseName();
+                QString CurrentFilePath = fileInfo.filePath();
+
+                if(QFileInfo(CurrentFilePath).absolutePath().contains("\\Windows", Qt::CaseSensitive)) continue;
+
+                if(nameOfCurrentFile == "Program Files" || nameOfCurrentFile == "Program Files (x86)" ||
+                    nameOfCurrentFile == "PerfLogs" || nameOfCurrentFile == userName) continue;
+
+                if(nameOfCurrentFile.contains(fileName)){
                     if(fileInfo.isDir()){
                         foldersToDelete.append(CurrentFilePath);
                     }
@@ -197,3 +272,8 @@ int deleteProcess(QVector<QString>& filesToDelete, QVector<QString>& foldersToDe
 
     return countOfUndeleted;
 }
+
+
+
+
+
