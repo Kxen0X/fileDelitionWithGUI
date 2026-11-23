@@ -6,8 +6,9 @@ int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     MainWindow w;
-    w.setMaximumSize(QSize(432, 305));
-    w.setMinimumSize(QSize(432, 305));
+    w.setWindowTitle("Удаление объектов");
+    w.setMaximumSize(QSize(432, 334));
+    w.setMinimumSize(QSize(432, 334));
     w.show();
     return a.exec();
 }
